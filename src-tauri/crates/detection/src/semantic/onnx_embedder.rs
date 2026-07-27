@@ -259,29 +259,20 @@ impl OnnxEmbedder {
             let dim = out_dims[1] as usize;
             data[..dim].to_vec()
         } else if out_dims.len() == 3 {
-            // token_embeddings: shape [1, seq_len, dim] — mean pooling over attention mask
-            // MUST match the Python precompute script (data/precompute-embeddings-onnx.py)
-            // which uses mean pooling. Using last-token pooling here would put queries
-            // in a different vector space than the pre-computed verse embeddings.
+            // last_hidden_state: shape [1, seq_len, dim] — LAST-TOKEN pooling.
+            // Qwen3-Embedding's config (1_Pooling/config.json) sets pooling_mode_lasttoken=true;
+            // mean pooling produces the wrong embedding space for it. Take the hidden state of
+            // the last non-masked token. (Fellowr Stage fix vs upstream Rhema, which mean-pooled.)
             let seq_len = out_dims[1] as usize;
             let dim = out_dims[2] as usize;
-            let mut pooled = vec![0.0f32; dim];
-            let mut mask_sum = 0.0f32;
+            let mut last_idx = 0usize;
             for (tok, &mask_val) in mask.iter().enumerate().take(seq_len) {
                 if mask_val > 0 {
-                    let offset = tok * dim;
-                    for d in 0..dim {
-                        pooled[d] += data[offset + d];
-                    }
-                    mask_sum += 1.0;
+                    last_idx = tok;
                 }
             }
-            if mask_sum > 0.0 {
-                for item in &mut pooled {
-                    *item /= mask_sum;
-                }
-            }
-            pooled
+            let offset = last_idx * dim;
+            data[offset..offset + dim].to_vec()
         } else {
             return Err(DetectionError::Internal(format!(
                 "unexpected tensor rank: {out_dims:?}",

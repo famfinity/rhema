@@ -47,8 +47,8 @@ fn main() {
     )
     .expect("Failed to load ONNX model");
 
-    // Use "passage: " prefix for verse embedding (Qwen3 uses asymmetric prefixes)
-    embedder.set_prompt_prefix("passage: ".to_string());
+    // Qwen3-Embedding documents use NO prompt (config_sentence_transformers.json: document="").
+    embedder.set_prompt_prefix(String::new());
 
     log::info!(
         "Model loaded. Embedding dimension: {}",
