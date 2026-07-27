@@ -98,9 +98,15 @@ pub fn run() {
             // Prefer INT8 quantized model (~571MB) over FP32 (~2.4GB)
             let base_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
             let model_path = {
+                // Prefer qwen3-fe: the exact feature-extraction export our precomputed
+                // embeddings were built with (Fellowr Stage — keeps query/doc vector space in parity).
+                let fe = base_dir.join("models/qwen3-fe/model.onnx");
                 let int8 = base_dir.join("models/qwen3-embedding-0.6b-int8/model_quantized.onnx");
                 let fp32 = base_dir.join("models/qwen3-embedding-0.6b/model.onnx");
-                if int8.exists() {
+                if fe.exists() {
+                    log::info!("Using qwen3-fe ONNX model (matches precomputed embeddings)");
+                    fe
+                } else if int8.exists() {
                     log::info!("Using INT8 quantized ONNX model");
                     int8
                 } else if fp32.exists() {
@@ -110,7 +116,10 @@ pub fn run() {
                     fp32
                 }
             };
-            let tokenizer_path = base_dir.join("models/qwen3-embedding-0.6b/tokenizer.json");
+            let tokenizer_path = {
+                let fe = base_dir.join("models/qwen3-fe/tokenizer.json");
+                if fe.exists() { fe } else { base_dir.join("models/qwen3-embedding-0.6b/tokenizer.json") }
+            };
             let embeddings_path = base_dir.join("embeddings/kjv-qwen3-0.6b.bin");
             let ids_path = base_dir.join("embeddings/kjv-qwen3-0.6b-ids.bin");
 
